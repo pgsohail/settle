@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pay invoice</title>
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="pay-wrap"><div class="card pay" id="pay"><div class="sk" style="height:18px;width:50%"></div><div class="sk" style="height:44px;width:70%;margin:14px 0 22px"></div><div class="sk" style="height:46px"></div></div></div>
+  <div id="toasts"></div>
+  <script>
+    const token = location.pathname.split("/").pop();
+    const el = document.getElementById("pay");
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const gbp = (p) => "£" + (p / 100).toLocaleString("en-GB", { minimumFractionDigits: 2 });
+    const due = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+    function paid(d) {
+      el.innerHTML = `<div style="text-align:center"><div class="done"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h2 style="margin:0 0 6px;letter-spacing:-.02em">Payment received</h2>
+        <p class="muted" style="margin:0">Thank you — ${esc(d.business)} has been notified that ${esc(d.number)} is settled.</p></div>`;
+    }
+
+    function show(d) {
+      document.title = `Pay ${d.number} — ${d.business}`;
+      if (d.paid) return paid(d);
+      el.innerHTML = `
+        <div class="muted" style="font-size:13px">${esc(d.business)} · Invoice ${esc(d.number)}</div>
+        <div class="amt num">${gbp(d.amount)}</div>
+        <div class="kv" style="margin-bottom:22px"><span>Billed to</span><span>${esc(d.customer)}</span><span>Due</span><span>${due(d.due_date)}</span></div>
+        <button class="btn primary lg" style="width:100%" id="pay-btn">Pay ${gbp(d.amount)}</button>
+        ${d.demo ? `<p class="muted" style="font-size:12px;text-align:center;margin:12px 0 0">Demo payment page — no card is charged.</p>` : ""}`;
+      document.getElementById("pay-btn").addEventListener("click", async (e) => {
+        e.target.classList.add("loading");
+        e.target.innerHTML = '<span class="spin"></span> Processing…';
+        const res = await fetch(`/api/pay/${encodeURIComponent(token)}`, { method: "POST" });
+        const data = await res.json();
+        await new Promise((r) => setTimeout(r, 700));
+        if (res.ok) paid(data);
+        else { e.target.classList.remove("loading"); e.target.textContent = data.error || "Payment failed"; }
+      });
+    }
+
+    fetch(`/api/pay/${encodeURIComponent(token)}`).then(async (r) => {
+      const d = await r.json();
+      if (!r.ok) el.innerHTML = `<h2 style="margin:0 0 6px">Link not valid</h2><p class="muted" style="margin:0">${esc(d.error)}</p>`;
+      else show(d);
+    });
+  </script>
+</body>
+</html>

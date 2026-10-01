@@ -1,0 +1,2 @@
+# Settle runs on the standard library. This is only needed for the Claude reply agent.
+anthropic
