@@ -84,6 +84,76 @@ function countUp(el, to, { ms = 1100, format = (v) => gbp(v) } = {}) {
 
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
+// ---------------------------------------------------------------- Adaline-style motion
+// Odometer: every digit is a 0–9 strip that rolls (with a touch of motion blur) into place.
+// Markup is generated statically; call `rollIn(root)` to start the roll.
+function odo(text, { small = "" } = {}) {
+  const digits = (s, offset) => [...s].map((ch, i) => /\d/.test(ch)
+    ? `<span class="odo" style="--d:${(offset + i) * 55}ms"><span class="odo-strip" data-v="${ch}">${"0123456789".split("").map((n) => `<span>${n}</span>`).join("")}</span></span>`
+    : `<span class="odo-sym">${esc(ch)}</span>`).join("");
+  const main = digits(text, 0);
+  return raw(`<span class="odo-num" aria-label="${esc(text + small)}"><span aria-hidden="true">${main}${small ? `<small>${digits(small, text.length)}</small>` : ""}</span></span>`);
+}
+const odoMoney = (p) => {
+  const pounds = Math.floor(Math.abs(p || 0) / 100), pence = Math.abs(p || 0) % 100;
+  return odo("£" + pounds.toLocaleString("en-GB"), { small: "." + String(pence).padStart(2, "0") });
+};
+function rollIn(root = document) {
+  const strips = $$(".odo-strip:not(.rolled)", root);
+  if (!strips.length) return;
+  requestAnimationFrame(() => requestAnimationFrame(() => strips.forEach((s) => {
+    s.classList.add("rolled");
+    s.style.transform = `translateY(-${+s.dataset.v * 10}%)`;
+  })));
+}
+
+// Scramble: text decodes from random symbols, left to right.
+const GLYPHS = "=$_~.&*^?/\\>%:;#+@!<|";
+function scramble(el, { ms = 700 } = {}) {
+  const target = el.dataset.text || el.textContent;
+  el.dataset.text = target;
+  if (reduced) { el.textContent = target; return; }
+  const start = performance.now();
+  const tick = (t) => {
+    const k = Math.min(1, (t - start) / ms);
+    const fixed = Math.floor(k * target.length);
+    el.textContent = [...target].map((ch, i) => i < fixed || ch === " " ? ch : GLYPHS[(Math.random() * GLYPHS.length) | 0]).join("");
+    if (k < 1) requestAnimationFrame(tick); else el.textContent = target;
+  };
+  requestAnimationFrame(tick);
+}
+
+// Run roll + scramble when an element scrolls into view (or straight away if already visible).
+function revealOnScroll(root = document) {
+  const targets = $$("[data-reveal]", root);
+  const run = (el) => { rollIn(el); $$("[data-scramble]", el).forEach((s) => scramble(s)); if (el.matches("[data-scramble]")) scramble(el); el.classList.add("revealed"); };
+  if (!("IntersectionObserver" in window)) return targets.forEach(run);
+  const io = new IntersectionObserver((entries) => entries.forEach((e) => { if (e.isIntersecting) { run(e.target); io.unobserve(e.target); } }), { threshold: .3 });
+  targets.forEach((t) => io.observe(t));
+}
+
+// ASCII field: a grid of symbols that quietly re-shuffles, like Adaline's hero.
+function asciiField(el, { cols = 42, rows = 26 } = {}) {
+  const line = () => Array.from({ length: cols }, () => GLYPHS[(Math.random() * GLYPHS.length) | 0]).join("");
+  const grid = Array.from({ length: rows }, line);
+  el.textContent = grid.join("\n");
+  if (reduced) return;
+  let last = 0;
+  const tick = (t) => {
+    if (!el.isConnected) return;
+    if (t - last > 90) {
+      last = t;
+      for (let n = 0; n < 14; n++) {
+        const r = (Math.random() * rows) | 0, c = (Math.random() * cols) | 0;
+        grid[r] = grid[r].slice(0, c) + GLYPHS[(Math.random() * GLYPHS.length) | 0] + grid[r].slice(c + 1);
+      }
+      el.textContent = grid.join("\n");
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
 // ---------------------------------------------------------------- icons (Lucide-style strokes)
 const ICONS = {
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
@@ -218,12 +288,13 @@ async function landing() {
   <main>
     <section class="gs-wrap gs-hero">
       <div class="gs-card hero-card">
-        <div class="hero-copy rise">
+        <div class="hero-copy rise" data-reveal>
+          <a class="tag-chip" href="#law"><span data-scramble>UK Late Payment Act, built in</span> ↗</a>
           <h1>Get paid without<br>the awkward chase.</h1>
           <p>Credit control for UK businesses. Settle connects to Xero or QuickBooks and politely chases every overdue invoice on WhatsApp and email — so you never have to.</p>
           <div class="hero-actions"><a class="pill lg" href="${cta}">See what you're owed</a><span>Set up in 3 minutes · No card</span></div>
         </div>
-        <div class="hero-art">${coinStage(250)}</div>
+        <div class="hero-art"><pre class="ascii" id="ascii" aria-hidden="true"></pre>${coinStage(250)}</div>
       </div>
     </section>
 
@@ -266,11 +337,19 @@ async function landing() {
       </div>
     </section>
 
-    <section class="gs-wrap gs-facts">
-      <div><b>14,000</b><span>UK small firms close each year because of late payment</span></div>
-      <div><b>86 hours</b><span>the average SME spends a year chasing invoices</span></div>
-      <div><b>£40–£100</b><span>fixed compensation per late invoice, plus 8% over base</span></div>
-      <small>Figures as reported by the UK Office of the Small Business Commissioner.</small>
+    <section class="gs-wrap gs-stats">
+      <div class="gs-stats-head" data-reveal>
+        <span class="tag-chip plain"><span data-scramble>The numbers</span></span>
+        <h2>Late payment is expensive.<br>The law knows it.</h2>
+        <p>UK small businesses lose time, cash and sleep to invoices paid late. The Late Payment Act gives you the right to charge for it.</p>
+      </div>
+      ${[
+        ["14,000", "UK small firms", "close every year because of late payment"],
+        ["86", "hours a year", "the average SME spends chasing unpaid invoices"],
+        ["8%", "over base rate", "statutory interest on every late business invoice"],
+        ["£100", "per invoice", "fixed compensation on debts over £10,000 (£40–£70 below)"],
+      ].map(([n, label, desc]) => html`<div class="stat-row" data-reveal><div class="stat-n">${odo(n)}</div><div class="stat-l">${label}</div><div class="stat-d">${desc}</div><i class="stat-line"></i></div>`)}
+      <small class="muted">Business-failure and hours figures as reported by the UK Office of the Small Business Commissioner.</small>
     </section>
 
     <section class="gs-wrap gs-law" id="law">
@@ -346,6 +425,8 @@ async function landing() {
   </footer>
   </div>`);
 
+  revealOnScroll(app);
+  if ($("#ascii")) asciiField($("#ascii"));
   const nav = $(".gs-nav");
   const onScroll = () => nav && nav.classList.toggle("scrolled", scrollY > 8);
   addEventListener("scroll", onScroll, { passive: true });
@@ -511,7 +592,7 @@ function reveal(o) {
   <div class="center-page">${onbHeader(1)}
     <div class="onb">
       <p class="sub fade-in" style="margin:0">Right now, you're owed</p>
-      <div class="reveal-amount num" id="rv-amt">£0</div>
+      <div class="reveal-amount num" id="rv-amt">${odoMoney(o.overdue_total)}</div>
       <p class="sub rise" style="animation-delay:.9s">across <b style="color:var(--ink)">${o.overdue_count} overdue invoices</b> from ${o.customers_overdue} customers. The oldest is <b style="color:var(--ink)">${o.oldest_days} days</b> late.</p>
       <div class="rise" style="animation-delay:1.1s">${agingBar(o.buckets)}</div>
       <div class="card bonus rise" style="animation-delay:1.3s">
@@ -524,7 +605,7 @@ function reveal(o) {
       </div>
     </div>
   </div>`);
-  countUp($("#rv-amt"), o.overdue_total, { ms: 1400, format: (v) => money(v) });
+  rollIn($("#rv-amt"));
 }
 
 async function setupPage() {
@@ -730,9 +811,9 @@ function barChart(bars, { height = 180, label, valueLabels = "all", fmt = (v) =>
   const showValue = (b, i) => valueLabels === "all" || (valueLabels === "highlight" && (b.highlight || b.value === max && b.value > 0));
   return html`<div class="chart" role="img" aria-label="${summary}" style="--h:${height}px">
     <div class="chart-plot">${bars.map((b, i) => html`
-      <div class="col ${b.highlight ? "hi" : ""}" tabindex="0" aria-label="${b.label}: ${fmt(b.value)}">
+      <div class="col ${b.highlight ? "hi" : ""}" tabindex="0" aria-label="${b.label}: ${fmt(b.value)}" style="--p:${b.value ? Math.max(2, (b.value / max) * 100) : 0}%">
         <span class="val ${showValue(b, i) ? "" : "hover-only"}">${fmt(b.value)}</span>
-        <span class="bar" style="--p:${b.value ? Math.max(2, (b.value / max) * 100) : 0}%"></span>
+        <span class="bar"></span>
         ${b.tip ? html`<span class="tip">${b.tip}</span>` : ""}
       </div>`)}</div>
     <div class="chart-axis">${bars.map((b) => html`<span>${b.label}</span>`)}</div>
@@ -770,8 +851,8 @@ async function overviewPage(main) {
     : html`Nothing is late. ${persona} will step in the moment something is.`;
 
   $(".hero-num").outerHTML = val(html`<section class="hero-num fade-in">
-    <div class="eyebrow-s">You're owed</div>
-    <div class="big num">${money(o.overdue_total)}</div>
+    <div class="eyebrow-s mono" data-scramble>You're owed</div>
+    <div class="big num">${odoMoney(o.overdue_total)}</div>
     <p>${sentence}${o.attention_count ? html` <a href="/app/invoices?f=attention" class="needs">${o.attention_count} ${o.attention_count === 1 ? "needs" : "need"} you →</a>` : ""}</p>
   </section>`);
 
@@ -805,7 +886,7 @@ async function overviewPage(main) {
 
     <section class="block fade-in">
       <div class="block-head"><div><h2>Collected each week</h2><p class="hint">Payments that came in after ${persona} chased. This week in green.</p></div>
-        <div class="block-total"><span class="muted">Last 8 weeks</span><b class="num">${gbp(weeks.reduce((a, w) => a + w.amount, 0))}</b></div></div>
+        <div class="block-total"><span class="muted">Last 8 weeks</span><b class="num">${odo(gbp(weeks.reduce((a, w) => a + w.amount, 0)))}</b></div></div>
       ${anyCollected
         ? barChart(weeks.map((w, i) => ({ label: i === lastIdx ? "This week" : fmtDate(w.start), value: w.amount, highlight: i === lastIdx, tip: `Week of ${fmtDate(w.start, { day: "numeric", month: "long" })}` })), { label: "Collected each week", height: 150, valueLabels: "highlight", fmt: gbpShort })
         : html`<div class="chart-empty">${barChart(weeks.map((w, i) => ({ label: i === lastIdx ? "This week" : fmtDate(w.start), value: 0 })), { label: "Collected each week", height: 90, valueLabels: "none" })}<p>No payments yet. Most customers pay within a week of the first message.</p></div>`}
@@ -823,6 +904,8 @@ async function overviewPage(main) {
       </section>
     </div>`);
   animateCharts(main);
+  rollIn(main);
+  $$("[data-scramble]", main).forEach((el) => scramble(el));
   $$("[data-inv]", main).forEach((el) => el.addEventListener("click", () => el.dataset.inv !== "null" && go(`/app/invoices/${el.dataset.inv}`)));
 }
 
@@ -1069,7 +1152,7 @@ function drawDrawer(inv) {
   d.innerHTML = val(html`
     <div class="d-head">
       <div class="top"><span class="muted num" style="font-size:13px">${inv.number}${inv.reference ? ` · ${inv.reference}` : ""}</span><button class="btn ghost sm" id="d-close" aria-label="Close">${icon("x", 16)}</button></div>
-      <div class="amt num">${money(open ? inv.amount_due : inv.collected_amount || inv.total)}</div>
+      <div class="amt num">${odoMoney(open ? inv.amount_due : inv.collected_amount || inv.total)}</div>
       <div class="meta"><b style="color:var(--ink)">${inv.customer.name}</b>${inv.customer.contact_name ? html`<span>· ${inv.customer.contact_name}</span>` : ""}${open && inv.days_overdue > 0 ? html`<span>· ${inv.days_overdue} days late</span>` : ""}</div>
       <p class="d-summary">${drawerSummary(inv, persona)}</p>
       ${open ? stepper(inv) : ""}
@@ -1096,6 +1179,7 @@ function drawDrawer(inv) {
       <form class="row2" id="compose"><textarea class="input" id="msg" rows="1" placeholder="${demo && replyMode === "customer" ? `What does ${firstName(inv.customer.contact_name) || "the customer"} say?` : `Message ${inv.customer.contact_name || inv.customer.name} on WhatsApp as ${persona}`}"></textarea><button class="btn primary" style="height:40px;width:40px;padding:0" aria-label="Send">${icon("send", 16)}</button></form>
     </div>` : ""}`);
 
+  rollIn(d);
   const body = $("#d-body");
   body.scrollTop = body.scrollHeight;
   $("#d-close").addEventListener("click", () => closeDrawer());

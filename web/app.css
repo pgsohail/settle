@@ -801,3 +801,57 @@ kbd { font: 11px var(--sans); border: 1px solid var(--line); border-bottom-width
 }
 .note + .page-title, .note + .hero-num { margin-top: 24px; }
 .note + .hero-num { padding-top: 8px; }
+
+/* =====================================================================
+   Adaline-inspired motion: rolling digits, scramble tags, ASCII field,
+   stat rows with dotted rules that draw in.
+   ===================================================================== */
+:root { --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+.mono { font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; font-size: 12px !important; }
+
+/* odometer */
+.odo-num { display: inline-flex; align-items: baseline; white-space: nowrap; }
+.odo-num > span { display: inline-flex; align-items: baseline; }
+.odo-num small { display: inline-flex; align-items: baseline; }
+.odo { display: inline-block; height: 1em; line-height: 1; overflow: hidden; vertical-align: baseline; position: relative; top: .08em; }
+.odo-strip { display: flex; flex-direction: column; transform: translateY(0); transition: transform 1.3s cubic-bezier(.16, 1, .3, 1) var(--d, 0ms); will-change: transform; }
+.odo-strip.rolled { animation: odoBlur 1.3s cubic-bezier(.16, 1, .3, 1) var(--d, 0ms) both; }
+.odo-strip span { display: block; height: 1em; line-height: 1; text-align: center; }
+.odo-sym { display: inline-block; line-height: 1; }
+@keyframes odoBlur { 0% { filter: blur(0); } 25% { filter: blur(1.5px); } 70%, 100% { filter: blur(0); } }
+@media (prefers-reduced-motion: reduce) { .odo-strip { transition: none; } .odo-strip.rolled { animation: none; } }
+
+/* tag chips */
+.tag-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 6px; background: #e6eedc; color: #29421f; font-family: var(--mono); font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; text-decoration: none; margin-bottom: 22px; }
+.tag-chip:hover { background: #dbe6cf; }
+.tag-chip.plain { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+
+/* ASCII field behind the coin */
+.hero-art { position: relative; }
+.ascii { position: absolute; inset: -20px; margin: 0; display: grid; place-items: center; font: 12px/1.35 var(--mono); color: #b5a77d; opacity: .55; overflow: hidden; pointer-events: none; white-space: pre; letter-spacing: .12em;
+  -webkit-mask-image: radial-gradient(closest-side, transparent 38%, #000 58%, transparent 100%); mask-image: radial-gradient(closest-side, transparent 38%, #000 58%, transparent 100%); }
+.hero-art .coin-stage { position: relative; z-index: 1; }
+
+/* stat rows */
+.gs-stats { padding-top: 140px; }
+.gs-stats-head { max-width: 560px; margin-bottom: 40px; }
+.gs-stats-head p { font-size: 16px; line-height: 1.6; margin: 14px 0 0; }
+.stat-row { position: relative; display: grid; grid-template-columns: 1.3fr .7fr 1fr; gap: 24px; align-items: center; padding: 30px 0; }
+.stat-n { font-family: var(--serif); font-weight: 400; font-size: clamp(52px, 7vw, 84px); letter-spacing: -.035em; line-height: 1; color: #9a9a95; transition: color 1.2s .2s; }
+.stat-row.revealed .stat-n { color: var(--ink); }
+.stat-l { font-size: 15px; color: var(--ink); font-weight: 500; }
+.stat-d { font-size: 14px; color: var(--muted); line-height: 1.5; }
+.stat-line { position: absolute; left: 0; bottom: 0; height: 1px; width: 0; background-image: linear-gradient(90deg, #c9c9c3 50%, transparent 50%); background-size: 6px 1px; transition: width 1.4s cubic-bezier(.16, 1, .3, 1) .1s; }
+.stat-row.revealed .stat-line { width: 100%; }
+.gs-stats > small { display: block; margin-top: 16px; font-size: 12px; }
+@media (max-width: 760px) {
+  .stat-row { grid-template-columns: 1fr; gap: 6px; padding: 24px 0; }
+  .ascii { font-size: 10px; }
+}
+.ascii { inset: auto; left: 50%; top: 50%; width: 500px; height: 500px; transform: translate(-50%, -50%); border-radius: 50%; }
+@media (max-width: 520px) { .ascii { width: 340px; height: 340px; } }
+/* value labels sit just above their bar; headroom keeps the tallest label inside the chart */
+.chart-plot { padding-top: 28px; box-sizing: content-box; }
+.col .val { position: absolute; left: 0; right: 0; text-align: center; bottom: 0; margin: 0; transition: bottom .9s var(--ease), opacity .4s .5s; }
+.chart.in .col .val { bottom: calc(var(--p) + 6px); }
+.col .tip { bottom: auto; top: -30px; }

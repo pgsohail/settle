@@ -48,6 +48,10 @@ python3 -m unittest discover tests
 **Product & UX**
 - Marketing site in the style of Goldsand (via Mobbin): serif type, gold coin, forest-green
   comparison bars, giant wordmark footer, live Late Payment Act calculator.
+- Motion inspired by Adaline (via Mobbin): money amounts roll into place digit by digit,
+  labels decode from scrambled symbols, an ASCII field shimmers behind the hero coin, and the
+  stats section's dotted rules draw in on scroll. All of it is switched off for people who
+  prefer reduced motion.
 - Sign up / log in (salted PBKDF2 passwords, HttpOnly session cookies).
 - Onboarding: connect books → "here's what you're owed" reveal → persona setup with live
   WhatsApp preview → review the first batch → go live.
