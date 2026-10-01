@@ -651,50 +651,49 @@ async function goLivePage() {
   }));
 }
 
-// ================================================================= APP SHELL
-const NAV = [["overview", "/app", "home", "Overview"], ["invoices", "/app/invoices", "file", "Invoices"], ["activity", "/app/activity", "pulse", "Activity"], ["settings", "/app/settings", "cog", "Settings"]];
+// ================================================================= APP SHELL (minimal top bar)
+const NAV = [["overview", "/app", "Overview"], ["invoices", "/app/invoices", "Invoices"], ["activity", "/app/activity", "Activity"], ["settings", "/app/settings", "Settings"]];
 
 function renderShell() {
-  const me = state.me, s = me.org.settings;
+  const me = state.me;
   if (!$(".shell")) {
     app.innerHTML = val(html`<div class="shell">
-      <aside class="side">
-        <div class="org"><span class="mark">${initials(me.org.name)}</span><div><b>${me.org.name}</b><span>${providerLabel(me.org.provider)}</span></div></div>
-        <nav class="nav" id="nav"></nav>
-        <div class="bottom">
-          <div class="card live-card" id="live-card"></div>
-          <div class="me"><span class="avatar soft">${initials(me.user.name)}</span><div style="min-width:0;flex:1"><div style="font-weight:500;font-size:13px">${me.user.name}</div><div class="muted" style="font-size:12px;overflow:hidden;text-overflow:ellipsis">${me.user.email}</div></div><button class="btn ghost sm" id="logout" title="Log out">${icon("out", 15)}</button></div>
-        </div>
-      </aside>
+      <header class="topbar"><div class="topbar-in">
+        <a href="/app" class="wordmark">Settle</a>
+        <nav class="tabsnav" id="nav"></nav>
+        <div class="topbar-right"><div id="live-card"></div>
+          <button class="who" id="who" title="${me.user.email}" aria-label="Account">${initials(me.user.name)}</button></div>
+      </div></header>
       <main class="main" id="main"></main>
     </div>
     <div class="scrim" id="scrim"></div>
     <aside class="drawer" id="drawer" aria-hidden="true"></aside>`);
-    $("#logout").addEventListener("click", async () => { await api("/api/logout", { method: "POST" }); state.me = null; go("/"); });
-    $("#scrim").addEventListener("click", closeDrawer);
+    $("#who").addEventListener("click", async () => {
+      if (!confirm(`Signed in as ${me.user.email}.\n\nLog out?`)) return;
+      await api("/api/logout", { method: "POST" }); state.me = null; go("/");
+    });
+    $("#scrim").addEventListener("click", () => closeDrawer());
   }
   renderLiveCard();
   return $("#main");
 }
 
 function renderNav(active, attention = null) {
-  $("#nav").innerHTML = val(NAV.map(([k, href, ic, label]) => html`<a href="${href}" class="${k === active ? "on" : ""}">${icon(ic)}${label}${k === "invoices" && attention ? html`<span class="count">${attention}</span>` : ""}</a>`));
+  $("#nav").innerHTML = val(NAV.map(([k, href, label]) => html`<a href="${href}" class="${k === active ? "on" : ""}">${label}${k === "invoices" && attention ? html`<i class="dot-count">${attention}</i>` : ""}</a>`));
 }
 
 function renderLiveCard() {
   const me = state.me, s = me.org.settings, live = me.org.live;
-  $("#live-card").innerHTML = val(html`
-    <div class="top"><span class="st"><span class="pulse ${live ? "" : "off"}"></span>${live ? `${s.persona_name} is chasing` : "Paused"}</span>
-      <label class="switch" title="${live ? "Pause all chasing" : "Resume chasing"}"><input type="checkbox" id="live-toggle" ${live ? raw("checked") : ""}><span></span><span class="sr">Chasing on</span></label></div>
-    <div class="muted" style="font-size:12px">${live ? `Weekdays ${s.hours.start}:00–${s.hours.end}:00` : "No messages will be sent"}</div>`);
-  $("#live-toggle").addEventListener("change", async (e) => {
-    const on = e.target.checked;
+  $("#live-card").innerHTML = val(html`<button class="status-pill ${live ? "on" : ""}" id="live-toggle" title="${live ? "Click to pause all chasing" : "Click to resume chasing"}">
+    <span class="pulse ${live ? "" : "off"}"></span>${live ? `${s.persona_name} is chasing` : "Paused"}</button>`);
+  $("#live-toggle").addEventListener("click", async () => {
+    const on = !state.me.org.live;
     try {
       await api("/api/pause-all", { method: "POST", body: { paused: !on } });
       state.me.org.live = on;
       renderLiveCard();
-      toast(on ? `${s.persona_name} is back on it` : "All chasing paused");
-    } catch (err) { e.target.checked = !on; toast(err.message, { error: true }); }
+      toast(on ? `${s.persona_name} is back on it` : "Paused. Nothing will be sent.");
+    } catch (err) { toast(err.message, { error: true }); }
   });
 }
 
@@ -705,9 +704,9 @@ async function shellPage(name, opts = {}) {
   if (!me.org.provider) return go("/app/connect", { replace: true });
   const main = renderShell();
   renderNav(name, state.attention);
-  const titles = { overview: "Overview", invoices: "Invoices", activity: "Activity", settings: "Settings" };
-  document.title = `${titles[name]} — Settle`;
+  document.title = `${NAV.find((n) => n[0] === name)[2]} — Settle`;
   if (name !== "invoices" || !opts.open) closeDrawer(false);
+  scrollTo(0, 0);
   if (name === "overview") return overviewPage(main);
   if (name === "invoices") return invoicesPage(main, opts.open);
   if (name === "activity") return activityPage(main);
@@ -716,115 +715,180 @@ async function shellPage(name, opts = {}) {
 
 function banners() {
   const me = state.me;
-  const parts = [];
-  if (me.org.provider === "demo") parts.push(html`<div class="demo-banner">${icon("sparkle")} You're exploring with sample data. Messages are simulated — open an invoice to reply as the customer.<a href="/app/connect">Connect your books</a></div>`);
-  if (!me.org.live) parts.push(html`<div class="demo-banner" style="background:var(--amber-bg);color:var(--amber)">${icon("pause")} ${me.org.settings.persona_name} isn't chasing yet.<a href="/app/golive">Review & go live</a></div>`);
-  return parts;
+  const out = [];
+  if (!me.org.live) out.push(html`<div class="note warn"><span>${me.org.settings.persona_name} isn't sending anything yet.</span><a href="/app/golive">Review and start →</a></div>`);
+  if (me.org.provider === "demo") out.push(html`<div class="note"><span>You're using sample data. Messages are simulated.</span><a href="/app/connect">Connect your books →</a></div>`);
+  return out;
 }
 
-const greeting = () => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; };
+// ---------------------------------------------------------------- charts
+// Single-series bar chart: rounded data-ends on a shared baseline, a hover label
+// per bar, values in ink (never in the bar colour), one optional green highlight.
+function barChart(bars, { height = 180, label, valueLabels = "all", fmt = (v) => gbp(v) } = {}) {
+  const max = Math.max(1, ...bars.map((b) => b.value));
+  const summary = `${label}: ` + bars.map((b) => `${b.label} ${fmt(b.value)}`).join(", ");
+  const showValue = (b, i) => valueLabels === "all" || (valueLabels === "highlight" && (b.highlight || b.value === max && b.value > 0));
+  return html`<div class="chart" role="img" aria-label="${summary}" style="--h:${height}px">
+    <div class="chart-plot">${bars.map((b, i) => html`
+      <div class="col ${b.highlight ? "hi" : ""}" tabindex="0" aria-label="${b.label}: ${fmt(b.value)}">
+        <span class="val ${showValue(b, i) ? "" : "hover-only"}">${fmt(b.value)}</span>
+        <span class="bar" style="--p:${b.value ? Math.max(2, (b.value / max) * 100) : 0}%"></span>
+        ${b.tip ? html`<span class="tip">${b.tip}</span>` : ""}
+      </div>`)}</div>
+    <div class="chart-axis">${bars.map((b) => html`<span>${b.label}</span>`)}</div>
+    <table class="sr"><caption>${label}</caption>${bars.map((b) => html`<tr><th>${b.label}</th><td>${fmt(b.value)}</td></tr>`)}</table>
+  </div>`;
+}
+
+function animateCharts(root) {
+  requestAnimationFrame(() => requestAnimationFrame(() => $$(".chart", root).forEach((c) => c.classList.add("in"))));
+}
+
+const gbpShort = (p) => {
+  const v = (p || 0) / 100;
+  if (v >= 1e6) return `£${(v / 1e6).toFixed(1)}m`;
+  if (v >= 1e4) return `£${Math.round(v / 1000)}k`;
+  if (v >= 1000) return `£${(v / 1000).toFixed(1)}k`;
+  return `£${Math.round(v)}`;
+};
 
 // ---------------------------------------------------------------- overview
 async function overviewPage(main) {
-  const me = state.me;
+  const me = state.me, s = me.org.settings;
   main.innerHTML = val(html`<div class="page">
-    <div class="page-head"><div><h1>${greeting()}, ${firstName(me.user.name)}</h1><p>Here's where your money is.</p></div>
-      <button class="btn sm" id="sync">${icon("refresh", 14)} Sync</button></div>
     ${banners()}
-    <div class="kpis">${[0, 1, 2, 3].map(() => html`<div class="card kpi"><div class="sk" style="height:14px;width:60%"></div><div class="sk" style="height:30px;width:80%;margin:10px 0 8px"></div><div class="sk" style="height:12px;width:50%"></div></div>`)}</div>
+    <section class="hero-num"><div class="sk" style="height:14px;width:120px"></div><div class="sk" style="height:64px;width:300px;margin:14px 0"></div><div class="sk" style="height:16px;width:420px;max-width:100%"></div></section>
     <div id="ov-rest"></div></div>`);
-  $("#sync").addEventListener("click", (e) => busy(e.currentTarget, async () => { const r = await api("/api/sync", { method: "POST" }); toast(`Synced ${r.count} invoices`); overviewPage(main); }));
 
   const [o, attn] = await Promise.all([api("/api/overview"), api("/api/invoices?filter=attention")]);
   state.attention = o.attention_count;
   renderNav("overview", o.attention_count);
-  const s = me.org.settings;
-  $(".kpis").outerHTML = val(html`<div class="kpis fade-in">
-    <div class="card kpi"><div class="k">${icon("clock", 14)} Overdue</div><div class="v amber num">${money(o.overdue_total)}</div><div class="s">${o.overdue_count} invoices · ${o.customers_overdue} customers</div></div>
-    <div class="card kpi"><div class="k">${icon("msg", 14)} Promised</div><div class="v num">${money(o.promised_total)}</div><div class="s">${o.promised_count ? `${o.promised_count} ${o.promised_count === 1 ? "customer has" : "customers have"} given a date` : "No promises yet"}</div></div>
-    <div class="card kpi"><div class="k">${icon("check", 14)} Collected by ${s.persona_name}</div><div class="v green num">${money(o.collected_month)}</div><div class="s">This month · ${gbp(o.collected_total)} all time</div></div>
-    <div class="card kpi"><div class="k">${icon("scale", 14)} Late Payment Act</div><div class="v num">${money(o.statutory_available)}</div><div class="s">Interest + compensation available</div></div>
-  </div>`);
+  const persona = s.persona_name;
+
+  const sentence = o.overdue_count
+    ? html`${o.overdue_count} late ${o.overdue_count === 1 ? "invoice" : "invoices"} from ${o.customers_overdue} ${o.customers_overdue === 1 ? "customer" : "customers"}. ${me.org.live ? `${persona} is chasing them for you.` : `${persona} is ready to start.`}`
+    : html`Nothing is late. ${persona} will step in the moment something is.`;
+
+  $(".hero-num").outerHTML = val(html`<section class="hero-num fade-in">
+    <div class="eyebrow-s">You're owed</div>
+    <div class="big num">${money(o.overdue_total)}</div>
+    <p>${sentence}${o.attention_count ? html` <a href="/app/invoices?f=attention" class="needs">${o.attention_count} ${o.attention_count === 1 ? "needs" : "need"} you →</a>` : ""}</p>
+  </section>`);
+
+  const b = o.buckets;
+  const weeks = o.weekly_collected;
+  const lastIdx = weeks.length - 1;
+  const anyCollected = weeks.some((w) => w.amount > 0);
 
   $("#ov-rest").innerHTML = val(html`
-    <div class="card panel fade-in" style="margin-bottom:16px"><h3>Ageing <a href="/app/invoices">View invoices →</a></h3>${o.open_total ? agingBar(o.buckets) : html`<div class="muted">No open invoices.</div>`}</div>
-    <div class="grid-2 fade-in">
-      <div class="card panel"><h3>Recent activity <a href="/app/activity">See all →</a></h3>${feed(o.activity)}</div>
-      <div class="card panel"><h3>Needs you ${attn.invoices.length ? html`<span class="badge amber plain">${attn.invoices.length}</span>` : ""}</h3>
-        ${attn.invoices.length ? attn.invoices.slice(0, 6).map((i) => html`<div class="attn-item" data-inv="${i.id}"><span class="attn-dot"></span><div class="grow"><div><b>${i.customer.name}</b> · <span class="num">${gbp(i.amount_due)}</span></div><div>${attentionReason(i)}</div></div>${icon("arrow", 14)}</div>`)
-          : html`<div class="empty"><div class="ico">${icon("check", 20)}</div><b>Nothing needs you</b>${s.persona_name} is handling everything.</div>`}
-      </div>
+    <div class="charts-2 fade-in">
+      <section class="block">
+        <h2>Where your money is</h2>
+        <p class="hint">Late money, money promised by a date, and money ${persona} has collected.</p>
+        ${barChart([
+          { label: "Late", value: o.overdue_total - o.promised_total, tip: "Not promised yet" },
+          { label: "Promised", value: o.promised_total, tip: `${o.promised_count} ${o.promised_count === 1 ? "customer" : "customers"} gave a date` },
+          { label: "Collected", value: o.collected_total, highlight: true, tip: `${o.collected_count} paid after a chase` },
+        ], { label: "Where your money is" })}
+      </section>
+      <section class="block">
+        <h2>How late it is</h2>
+        <p class="hint">Older debts are harder to collect. Days past the due date.</p>
+        ${barChart([
+          { label: "1–30d", value: b["1_30"] },
+          { label: "31–60d", value: b["31_60"] },
+          { label: "61–90d", value: b["61_90"] },
+          { label: "90d+", value: b["90_plus"] },
+        ], { label: "Overdue money by age" })}
+      </section>
+    </div>
+
+    <section class="block fade-in">
+      <div class="block-head"><div><h2>Collected each week</h2><p class="hint">Payments that came in after ${persona} chased. This week in green.</p></div>
+        <div class="block-total"><span class="muted">Last 8 weeks</span><b class="num">${gbp(weeks.reduce((a, w) => a + w.amount, 0))}</b></div></div>
+      ${anyCollected
+        ? barChart(weeks.map((w, i) => ({ label: i === lastIdx ? "This week" : fmtDate(w.start), value: w.amount, highlight: i === lastIdx, tip: `Week of ${fmtDate(w.start, { day: "numeric", month: "long" })}` })), { label: "Collected each week", height: 150, valueLabels: "highlight", fmt: gbpShort })
+        : html`<div class="chart-empty">${barChart(weeks.map((w, i) => ({ label: i === lastIdx ? "This week" : fmtDate(w.start), value: 0 })), { label: "Collected each week", height: 90, valueLabels: "none" })}<p>No payments yet. Most customers pay within a week of the first message.</p></div>`}
+    </section>
+
+    <div class="charts-2 fade-in">
+      <section class="block">
+        <div class="block-head"><h2>Needs you</h2>${attn.invoices.length ? html`<a href="/app/invoices?f=attention" class="more">All ${attn.invoices.length} →</a>` : ""}</div>
+        ${attn.invoices.length ? html`<ul class="simple-list">${attn.invoices.slice(0, 5).map((i) => html`<li data-inv="${i.id}"><span class="dot amber"></span><div><b>${i.customer.name}</b><span>${attentionReason(i)}</span></div><em class="num">${gbp(i.amount_due)}</em></li>`)}</ul>`
+          : html`<p class="calm">Nothing right now. ${persona} is handling everything.</p>`}
+      </section>
+      <section class="block">
+        <div class="block-head"><h2>Latest</h2><a href="/app/activity" class="more">All activity →</a></div>
+        ${feed(o.activity.slice(0, 5))}
+      </section>
     </div>`);
-  $$("[data-inv]", main).forEach((el) => el.addEventListener("click", () => go(`/app/invoices/${el.dataset.inv}`)));
+  animateCharts(main);
+  $$("[data-inv]", main).forEach((el) => el.addEventListener("click", () => el.dataset.inv !== "null" && go(`/app/invoices/${el.dataset.inv}`)));
 }
 
 function attentionReason(i) {
-  if (i.state === "disputed") return "Raised a query — over to you";
-  if (i.stage >= 5) return "Final notice sent — worth a call";
-  if (!i.customer.phone && !i.customer.email) return "No contact details";
-  if (i.last_message) return i.last_message.body.split("\n")[0];
-  return "Needs a look";
+  if (i.state === "disputed") return "Raised a query. Over to you.";
+  if (i.stage >= 5) return "Final reminder sent. Worth a call.";
+  if (!i.customer.phone && !i.customer.email) return "No phone or email to contact them.";
+  if (i.state === "promised") return `Promised to pay ${fmtDay(i.promised_date)}.`;
+  return "Asked for more time or had a question.";
 }
 
-function feedIcon(m) {
-  if (m.direction === "in") return ["in", "msg"];
-  if (m.direction === "out") return m.channel === "whatsapp" ? ["wa", "msg"] : ["", "mail"];
-  const k = m.meta.kind;
-  if (k === "collected" || k === "paid") return ["ok", "check"];
-  if (m.meta.needs_owner || k === "escalated" || k === "unreachable") return ["warn", "alert"];
-  return ["", "sparkle"];
-}
-
-function feedTitle(m) {
-  const who = m.customer_name || "";
-  if (m.direction === "in") return `${who} replied`;
-  if (m.direction === "out") return m.meta.agent ? `${state.me.org.settings.persona_name} replied to ${who}` : m.meta.owner ? `You messaged ${who}` : `${m.channel === "whatsapp" ? "WhatsApp" : "Email"} to ${who}`;
-  if (m.meta.kind === "collected") return `${who} paid`;
-  return who ? `${who} · ${m.number}` : "Update";
+// Plain-English activity lines
+function feedLine(m) {
+  const who = m.customer_name || "A customer";
+  const persona = state.me.org.settings.persona_name;
+  if (m.direction === "in") return [who, `replied: “${m.body.split("\n")[0]}”`, "in"];
+  if (m.direction === "out") {
+    if (m.meta.owner) return ["You", `messaged ${who}`, "out"];
+    if (m.meta.agent) return [persona, `answered ${who}`, "out"];
+    const stage = m.meta.stage ? ` (${["", "friendly nudge", "follow-up", "pay by Friday", "Late Payment Act claim", "final reminder"][m.meta.stage]})` : "";
+    return [persona, `${m.channel === "whatsapp" ? "WhatsApped" : "emailed"} ${who}${stage}`, "out"];
+  }
+  if (m.meta.kind === "collected") return [who, `paid. ${m.body.split("—")[1]?.split(".")[0]?.trim() || "Collected"}.`, "ok"];
+  if (m.meta.kind === "agent") return [persona, m.body.replace(/\.$/, "") + ".", m.meta.needs_owner ? "warn" : "sys"];
+  return ["", m.body, m.meta.needs_owner || ["escalated", "unreachable"].includes(m.meta.kind) ? "warn" : "sys"];
 }
 
 function feed(items) {
-  if (!items.length) return html`<div class="empty"><div class="ico" style="background:var(--surface-2);color:var(--muted)">${icon("pulse", 20)}</div><b>No activity yet</b>Messages and replies will appear here.</div>`;
-  return html`<div class="feed">${items.map((m) => {
-    const [cls, ic] = feedIcon(m);
-    return html`<div class="feed-item" data-inv="${m.invoice_id}"><span class="fi ${cls}">${icon(ic, 14)}</span><div style="min-width:0"><div class="tt">${feedTitle(m)}</div><div class="bd">${m.subject || m.body}</div></div><time>${ago(m.created_at)}</time></div>`;
-  })}</div>`;
+  if (!items.length) return html`<p class="calm">Nothing yet. Messages and replies will show up here.</p>`;
+  return html`<ul class="simple-list feed">${items.map((m) => {
+    const [who, what, kind] = feedLine(m);
+    return html`<li data-inv="${m.invoice_id}"><span class="dot ${kind}"></span><div><span class="line">${who ? html`<b>${who}</b> ` : ""}${what}</span></div><time>${ago(m.created_at)}</time></li>`;
+  })}</ul>`;
 }
 
 // ---------------------------------------------------------------- invoices
-const TABS = [["overdue", "Overdue"], ["attention", "Needs you"], ["chasing", "Chasing"], ["promised", "Promised"], ["disputed", "On hold"], ["upcoming", "Not due"], ["paid", "Paid"]];
+const TABS = [["overdue", "Late"], ["attention", "Needs you"], ["promised", "Promised"], ["paid", "Paid"], ["upcoming", "Not due yet"]];
 
-function stateBadge(i) {
-  if (i.status === "paid") return i.state === "collected" ? html`<span class="badge green">Collected</span>` : html`<span class="badge">Paid</span>`;
-  if (i.state === "promised") return html`<span class="badge blue">Promised ${fmtDate(i.promised_date)}</span>`;
-  if (i.state === "disputed") return html`<span class="badge red">Query</span>`;
-  if (i.state === "paused") return html`<span class="badge">Paused</span>`;
-  if (i.state === "chasing") return html`<span class="badge amber">${i.stage_label}</span>`;
-  if (i.days_overdue <= 0) return html`<span class="badge plain">Not due</span>`;
-  return html`<span class="badge plain">Queued</span>`;
+function statusText(i) {
+  const persona = state.me.org.settings.persona_name;
+  if (i.status === "paid") return i.state === "collected" ? ["ok", "Collected"] : ["", "Paid"];
+  if (i.needs_attention) return ["amber", "Needs you"];
+  if (i.state === "promised") return ["blue", `Promised ${fmtDay(i.promised_date)}`];
+  if (i.state === "disputed") return ["amber", "Query raised"];
+  if (i.state === "paused") return ["", "Paused"];
+  if (i.state === "chasing") return ["green", `${persona} is chasing`];
+  if (i.days_overdue <= 0) return ["", "Not due yet"];
+  return ["", state.me.org.live ? "Starting soon" : "Waiting to start"];
 }
+const stateBadge = (i) => { const [c, t] = statusText(i); return html`<span class="status"><span class="dot ${c}"></span>${t}</span>`; };
 
 function daysCell(i) {
-  if (i.status === "paid") return html`<span class="days muted">${fmtDate(i.paid_at)}</span>`;
-  if (i.days_overdue <= 0) return html`<span class="days muted">Due ${i.days_overdue === 0 ? "today" : fmtDate(i.due_date)}</span>`;
-  return html`<span class="days num ${i.days_overdue > 60 ? "very" : "late"}">${i.days_overdue}d late</span>`;
-}
-
-function nextCell(i) {
-  if (!i.next) return "";
-  if (!i.next.date) return i.next.label;
-  const today = new Date().toISOString().slice(0, 10);
-  return `${i.next.label} · ${i.next.date <= today ? "today" : fmtDay(i.next.date)}`;
+  if (i.status === "paid") return html`<span class="muted">${fmtDate(i.paid_at)}</span>`;
+  if (i.days_overdue <= 0) return html`<span class="muted">Due ${i.days_overdue === 0 ? "today" : fmtDate(i.due_date)}</span>`;
+  return html`<span class="num ${i.days_overdue > 60 ? "late-very" : ""}">${i.days_overdue} days</span>`;
 }
 
 async function invoicesPage(main, openId) {
-  const existing = $("#inv-page", main);
-  if (!existing) {
+  const f = new URLSearchParams(location.search).get("f");
+  if (f && TABS.some(([k]) => k === f)) state.invoiceFilter = f;
+  if (!$("#inv-page", main)) {
     main.innerHTML = val(html`<div class="page" id="inv-page">
-      <div class="page-head"><div><h1>Invoices</h1><p>Everything Settle is tracking, synced from ${providerLabel(state.me.org.provider).replace("Connected to ", "")}.</p></div></div>
       ${banners()}
-      <div class="toolbar"><div class="tabs" id="tabs"></div>
-        <div class="search">${icon("search")}<input class="input" id="q" placeholder="Search customers or invoices" value="${state.search}" autocomplete="off"><kbd>/</kbd></div></div>
+      <div class="page-title"><h1>Invoices</h1>
+        <div class="search">${icon("search")}<input class="input" id="q" placeholder="Search" value="${state.search}" autocomplete="off"><kbd>/</kbd></div></div>
+      <div class="pills" id="tabs"></div>
       <div id="inv-table"></div></div>`);
     $("#q").addEventListener("input", (e) => { state.search = e.target.value; state.kbIndex = -1; drawTable(); });
     loadInvoices(true);
@@ -834,7 +898,7 @@ async function invoicesPage(main, openId) {
 
 async function loadInvoices(skeleton = false) {
   if (skeleton) {
-    $("#inv-table").innerHTML = val(html`<table class="table"><tbody>${[...Array(6)].map(() => html`<tr><td><div class="sk" style="height:16px;width:180px"></div></td><td><div class="sk" style="height:16px;width:70px"></div></td><td class="r"><div class="sk" style="height:16px;width:80px;margin-left:auto"></div></td><td class="hide-m"><div class="sk" style="height:16px;width:90px"></div></td></tr>`)}</tbody></table>`);
+    $("#inv-table").innerHTML = val(html`<div class="list">${[...Array(6)].map(() => html`<div class="list-row"><div class="sk" style="height:16px;width:200px"></div><div class="sk" style="height:16px;width:80px;margin-left:auto"></div></div>`)}</div>`);
     drawTabs({});
   }
   const data = await api(`/api/invoices?filter=${state.invoiceFilter}`);
@@ -848,8 +912,12 @@ async function loadInvoices(skeleton = false) {
 function drawTabs(counts) {
   const el = $("#tabs");
   if (!el) return;
-  el.innerHTML = val(TABS.map(([k, l]) => html`<button class="tab ${state.invoiceFilter === k ? "on" : ""}" data-f="${k}">${l}${counts[k] != null ? html`<span class="c num">${counts[k]}</span>` : ""}</button>`));
-  $$(".tab", el).forEach((b) => b.addEventListener("click", () => { state.invoiceFilter = b.dataset.f; state.kbIndex = -1; loadInvoices(); drawTabs(counts); }));
+  el.innerHTML = val(TABS.map(([k, l]) => html`<button class="pill-tab ${state.invoiceFilter === k ? "on" : ""}" data-f="${k}">${l}${counts[k] ? html` <span class="num">${counts[k]}</span>` : ""}</button>`));
+  $$(".pill-tab", el).forEach((b) => b.addEventListener("click", () => {
+    state.invoiceFilter = b.dataset.f; state.kbIndex = -1;
+    history.replaceState({}, "", "/app/invoices" + (b.dataset.f === "overdue" ? "" : `?f=${b.dataset.f}`));
+    loadInvoices(); drawTabs(counts);
+  }));
 }
 
 function filtered() {
@@ -864,24 +932,25 @@ function drawTable() {
   if (!el || !state.listCache) return;
   const rows = filtered();
   if (!rows.length) {
-    const msg = state.search ? ["No matches", "Try a different name or invoice number."] : {
-      attention: ["Nothing needs you", "Replies that need a human will show up here."],
-      promised: ["No promises yet", "When a customer commits to a date, it lands here."],
-      disputed: ["Nothing on hold", "Queries and paused invoices appear here."],
-      paid: ["No payments yet", "Collected invoices will show up here."],
-    }[state.invoiceFilter] || ["All clear", "No invoices in this view."];
-    el.innerHTML = val(html`<div class="empty fade-in"><div class="ico">${icon("check", 20)}</div><b>${msg[0]}</b>${msg[1]}</div>`);
+    const msg = state.search ? "No invoices match that search." : {
+      overdue: "Nothing is late. Nice.", attention: "Nothing needs you right now.",
+      promised: "No promises yet. When a customer gives a date, it shows here.",
+      paid: "No payments yet.", upcoming: "No invoices waiting to fall due.",
+    }[state.invoiceFilter];
+    el.innerHTML = val(html`<p class="calm fade-in" style="padding:48px 0;text-align:center">${msg}</p>`);
     return;
   }
-  el.innerHTML = val(html`<table class="table fade-in"><thead><tr><th>Customer</th><th class="hide-m">Invoice</th><th class="r">Amount</th><th>Due</th><th>Status</th><th class="hide-m">Next</th></tr></thead><tbody>
-    ${rows.map((i, n) => html`<tr class="row ${state.drawerId === i.id ? "sel" : ""} ${state.kbIndex === n ? "kb" : ""}" tabindex="0" data-id="${i.id}">
-      <td><div class="cust">${i.needs_attention ? html`<span class="attn-dot" title="Needs you"></span>` : ""}<span class="avatar soft" style="width:28px;height:28px;font-size:11px">${initials(i.customer.name)}</span><div style="min-width:0"><b>${i.customer.name}</b><span>${i.customer.contact_name || "—"}</span></div></div></td>
-      <td class="hide-m"><span class="num">${i.number}</span>${i.reference ? html`<div class="muted" style="font-size:12px">${i.reference}</div>` : ""}</td>
-      <td class="r num"><b style="font-weight:500">${gbp(i.status === "paid" ? i.collected_amount || i.total : i.amount_due, true)}</b></td>
-      <td>${daysCell(i)}</td>
-      <td>${stateBadge(i)}</td>
-      <td class="hide-m"><span class="next">${nextCell(i)}</span></td>
-    </tr>`)}</tbody></table>`);
+  const total = rows.reduce((a, i) => a + (i.status === "paid" ? i.collected_amount || i.total : i.amount_due), 0);
+  el.innerHTML = val(html`<div class="list fade-in">
+    <div class="list-head"><span>Customer</span><span class="hide-m">Late by</span><span class="hide-m">Status</span><span class="r">Amount</span></div>
+    ${rows.map((i, n) => html`<div class="list-row row ${state.drawerId === i.id ? "sel" : ""} ${state.kbIndex === n ? "kb" : ""}" tabindex="0" data-id="${i.id}">
+      <div class="who-cell"><b>${i.customer.name}</b><span>${i.number}${i.reference ? ` · ${i.reference}` : ""}</span></div>
+      <div class="hide-m">${daysCell(i)}</div>
+      <div class="hide-m">${stateBadge(i)}</div>
+      <div class="r"><b class="num amt">${gbp(i.status === "paid" ? i.collected_amount || i.total : i.amount_due, true)}</b><span class="show-m">${stateBadge(i)}</span></div>
+    </div>`)}
+    <div class="list-foot"><span>${rows.length} ${rows.length === 1 ? "invoice" : "invoices"}</span><b class="num">${gbp(total, true)}</b></div>
+  </div>`);
   $$(".row", el).forEach((r) => {
     r.addEventListener("click", () => go(`/app/invoices/${r.dataset.id}`));
     r.addEventListener("keydown", (e) => { if (e.key === "Enter") go(`/app/invoices/${r.dataset.id}`); });
@@ -892,7 +961,7 @@ function drawTable() {
 document.addEventListener("keydown", (e) => {
   const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName);
   if (e.key === "Escape") {
-    if (state.drawerId) { e.preventDefault(); go("/app/invoices"); }
+    if (state.drawerId) { e.preventDefault(); closeDrawer(); }
     else if (typing) document.activeElement.blur();
     return;
   }
@@ -965,6 +1034,30 @@ function threadItem(m) {
   return html`<div class="bubble ${m.direction} ${m.meta.agent ? "agent" : ""}">${who ? html`<span class="who">${who}</span>` : ""}${linkify(m.body)}<time>${clock(m.created_at)}${m.direction === "out" ? html` <span class="tick">✓✓</span>` : ""}${sim}</time></div>`;
 }
 
+const STEPS = ["Nudge", "Follow-up", "By Friday", "Late Payment Act", "Final"];
+
+function stepper(inv) {
+  const nextStage = inv.next?.stage || 0;
+  return html`<ol class="stepper" aria-label="Chase progress">${STEPS.map((s, i) => {
+    const n = i + 1;
+    const cls = n <= inv.stage ? "done" : n === nextStage ? "next" : "";
+    return html`<li class="${cls}"><span></span>${s}</li>`;
+  })}</ol>`;
+}
+
+function drawerSummary(inv, persona) {
+  const today = new Date().toISOString().slice(0, 10);
+  const when = (d) => (d <= today ? (state.me.org.live ? "in the next business hours" : "once you start") : `on ${fmtDay(d)}`);
+  if (inv.status === "paid") return inv.state === "collected" ? `Paid ${fmtDate(inv.paid_at)} after ${persona} chased. Nothing more to do.` : `Paid ${fmtDate(inv.paid_at)}.`;
+  if (inv.state === "disputed") return `${firstName(inv.customer.contact_name) || "They"} raised a query. ${persona} has stopped until you reply.`;
+  if (inv.state === "paused") return `Paused. ${persona} won't send anything until you resume.`;
+  if (inv.state === "promised") return `Promised to pay on ${fmtDay(inv.promised_date)}. ${persona} checks in the day after if it hasn't arrived.`;
+  if (inv.stage >= 5) return `${persona} has sent the final reminder. It's over to you now — a quick call usually does it.`;
+  if (inv.days_overdue <= 0) return `Not due yet. If it isn't paid on time, ${persona} sends a friendly nudge ${inv.next?.date ? `on ${fmtDay(inv.next.date)}` : "a few days later"}.`;
+  if (!inv.stage) return `Not contacted yet. ${persona} sends a ${inv.next?.label.toLowerCase() || "first message"} ${inv.next?.date ? when(inv.next.date) : "soon"}.`;
+  return `${persona} has sent ${inv.stage} ${inv.stage === 1 ? "reminder" : "reminders"}. Next: ${inv.next?.label.toLowerCase()} ${inv.next?.date ? when(inv.next.date) : ""}.`;
+}
+
 function drawDrawer(inv) {
   const d = $("#drawer");
   const persona = state.me.org.settings.persona_name;
@@ -977,7 +1070,10 @@ function drawDrawer(inv) {
     <div class="d-head">
       <div class="top"><span class="muted num" style="font-size:13px">${inv.number}${inv.reference ? ` · ${inv.reference}` : ""}</span><button class="btn ghost sm" id="d-close" aria-label="Close">${icon("x", 16)}</button></div>
       <div class="amt num">${money(open ? inv.amount_due : inv.collected_amount || inv.total)}</div>
-      <div class="meta"><b style="color:var(--ink)">${inv.customer.name}</b>${inv.customer.contact_name ? html`<span>· ${inv.customer.contact_name}</span>` : ""}${stateBadge(inv)}${open && inv.days_overdue > 0 ? html`<span class="days num ${inv.days_overdue > 60 ? "very" : "late"}">${inv.days_overdue} days late</span>` : ""}</div>
+      <div class="meta"><b style="color:var(--ink)">${inv.customer.name}</b>${inv.customer.contact_name ? html`<span>· ${inv.customer.contact_name}</span>` : ""}${open && inv.days_overdue > 0 ? html`<span>· ${inv.days_overdue} days late</span>` : ""}</div>
+      <p class="d-summary">${drawerSummary(inv, persona)}</p>
+      ${open ? stepper(inv) : ""}
+      ${open && inv.preview ? html`<button class="linkish" id="pv-toggle">See ${persona}'s next message</button><div class="preview-box" id="pv" hidden><div class="bubble out">${linkify(inv.preview.whatsapp)}</div></div>` : ""}
       ${open ? html`<div class="d-actions">
         ${inv.days_overdue > 0 && inv.stage < 5 && inv.state !== "disputed" ? html`<button class="btn sm primary" data-act="chase-now">${icon("send", 14)} Chase now</button>` : ""}
         ${inv.state === "paused" || inv.state === "disputed" ? html`<button class="btn sm" data-act="resume">${icon("play", 14)} Resume chasing</button>` : html`<button class="btn sm" data-act="pause">${icon("pause", 14)} Pause</button>`}
@@ -986,11 +1082,6 @@ function drawDrawer(inv) {
       </div>` : ""}
     </div>
     <div class="d-body" id="d-body">
-      ${open && inv.next ? html`<div class="d-section"><h4>Next step</h4>
-        <div class="next-box"><span class="ico">${icon(inv.next.date ? "clock" : "alert", 15)}</span><div style="flex:1"><b>${inv.next.label}</b><div class="muted" style="font-size:13px">${inv.next.date ? (inv.next.date <= new Date().toISOString().slice(0, 10) ? `Next business hours${state.me.org.live ? "" : " (once you go live)"}` : fmtDay(inv.next.date)) : `${persona} has paused on this one.`}</div></div>
-        ${inv.preview ? html`<button class="linkish" id="pv-toggle">Preview</button>` : ""}</div>
-        ${inv.preview ? html`<div class="preview-box" id="pv" hidden><div class="bubble out">${linkify(inv.preview.whatsapp)}</div></div>` : ""}
-      </div>` : ""}
       ${open && c && c.days_late > 0 ? html`<div class="d-section"><h4>Late Payment Act</h4>
         <div class="kv num"><span>Statutory interest (${c.annual_rate.toFixed(2)}%)</span><span>${gbp(c.interest, true)}</span><span>Fixed compensation</span><span>${gbp(c.compensation, true)}</span><span class="tot">Claimable now</span><span class="tot">${gbp(c.total_claim, true)}</span></div>
         <div class="muted" style="font-size:12px;margin-top:8px">${state.me.org.settings.statutory ? `${persona} mentions this from stage 3.` : "Mentions are switched off in Settings."} Accrues ${gbp(Math.round(c.daily_interest), true)} a day.</div></div>` : ""}
@@ -1008,7 +1099,7 @@ function drawDrawer(inv) {
   const body = $("#d-body");
   body.scrollTop = body.scrollHeight;
   $("#d-close").addEventListener("click", () => closeDrawer());
-  $("#pv-toggle")?.addEventListener("click", (e) => { const p = $("#pv"); p.hidden = !p.hidden; e.target.textContent = p.hidden ? "Preview" : "Hide"; });
+  $("#pv-toggle")?.addEventListener("click", (e) => { const p = $("#pv"); p.hidden = !p.hidden; e.target.textContent = p.hidden ? `See ${persona}'s next message` : "Hide message"; });
   $("#add-contact")?.addEventListener("click", () => editContact(inv));
   $$("[data-act]", d).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
     const act = b.dataset.act;
@@ -1066,19 +1157,25 @@ function editContact(inv) {
 
 // ---------------------------------------------------------------- activity
 async function activityPage(main) {
-  main.innerHTML = val(html`<div class="page"><div class="page-head"><div><h1>Activity</h1><p>Every message, reply and payment.</p></div></div>${banners()}
-    <div class="card panel" id="act"><div class="sk" style="height:48px;margin-bottom:10px"></div><div class="sk" style="height:48px;margin-bottom:10px"></div><div class="sk" style="height:48px"></div></div></div>`);
+  main.innerHTML = val(html`<div class="page">${banners()}<div class="page-title"><h1>Activity</h1></div>
+    <div id="act"><div class="sk" style="height:20px;margin:14px 0"></div><div class="sk" style="height:20px;margin:14px 0"></div><div class="sk" style="height:20px;margin:14px 0"></div></div></div>`);
   const { activity } = await api("/api/activity");
-  $("#act").innerHTML = val(feed(activity));
-  $("#act").classList.add("fade-in");
-  $$("[data-inv]", main).forEach((el) => el.addEventListener("click", () => el.dataset.inv && go(`/app/invoices/${el.dataset.inv}`)));
+  const days = [];
+  for (const m of activity) {
+    const key = new Date(m.created_at).toDateString();
+    if (!days.length || days[days.length - 1].key !== key) days.push({ key, items: [] });
+    days[days.length - 1].items.push(m);
+  }
+  const label = (key) => key === new Date().toDateString() ? "Today" : key === new Date(Date.now() - 864e5).toDateString() ? "Yesterday" : new Date(key).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  $("#act").innerHTML = val(days.length ? days.map((d) => html`<section class="day-group fade-in"><h3>${label(d.key)}</h3>${feed(d.items)}</section>`) : feed([]));
+  $$("[data-inv]", main).forEach((el) => el.addEventListener("click", () => el.dataset.inv !== "null" && go(`/app/invoices/${el.dataset.inv}`)));
 }
 
 // ---------------------------------------------------------------- settings
 async function settingsPage(main) {
   const data = await api("/api/settings");
   const org = data.org, s = structuredClone(org.settings), i = data.integrations;
-  main.innerHTML = val(html`<div class="page"><div class="page-head"><div><h1>Settings</h1><p>Changes save automatically.</p></div></div>
+  main.innerHTML = val(html`<div class="page"><div class="page-title"><h1>Settings</h1><span class="muted">Changes save automatically</span></div>
     <div class="settings fade-in">
       <div class="card panel"><h3>Your credit controller</h3>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:8px 0 16px">

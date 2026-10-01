@@ -224,6 +224,17 @@ def overview(req, body):
                        WHERE m.org_id = ? ORDER BY m.id DESC LIMIT 12""", org["id"])
     sent = db.q1("SELECT COUNT(*) AS n FROM messages WHERE org_id = ? AND direction = 'out'", org["id"])["n"]
 
+    # Money collected by Settle in each of the last 8 weeks (weeks start Monday, UK time).
+    this_monday = on - timedelta(days=on.weekday())
+    weeks = [{"start": (this_monday - timedelta(weeks=8 - 1 - i)).isoformat(), "amount": 0} for i in range(8)]
+    for r in collected:
+        if not r["paid_at"]:
+            continue
+        paid = datetime.fromisoformat(r["paid_at"]).astimezone(engine.TZ).date()
+        idx = 7 - (this_monday - (paid - timedelta(days=paid.weekday()))).days // 7
+        if 0 <= idx < 8:
+            weeks[idx]["amount"] += r["collected_amount"]
+
     return {
         "org": org_view(org),
         "open_total": sum(r["amount_due"] for r in open_rows),
@@ -242,6 +253,7 @@ def overview(req, body):
         "oldest_days": max(((on - date.fromisoformat(r["due_date"])).days for r in overdue), default=0),
         "buckets": buckets,
         "messages_sent": sent,
+        "weekly_collected": weeks,
         "activity": [{**engine.message_view(a), "number": a["number"], "customer_name": a["customer_name"],
                       "invoice_id": a["invoice_id"]} for a in activity],
     }
