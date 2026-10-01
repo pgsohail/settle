@@ -183,137 +183,180 @@ async function render() {
   app.innerHTML = val(html`<div class="center-page"><header>${logo()}</header><div class="auth"><h1>Page not found</h1><p>That link doesn't go anywhere.</p><a class="btn primary" href="/">Go home</a></div></div>`);
 }
 
-// ================================================================= LANDING
+// ================================================================= LANDING (Goldsand-inspired)
+let coinSeq = 0;
+function coin(size = 260) {
+  const id = `c${++coinSeq}`;
+  return raw(`<svg class="coin" width="${size}" height="${size}" viewBox="0 0 200 200" aria-hidden="true">
+    <defs>
+      <linearGradient id="${id}a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbe7a6"/><stop offset=".35" stop-color="#e2b04f"/><stop offset=".7" stop-color="#b9831f"/><stop offset="1" stop-color="#8a5a12"/></linearGradient>
+      <linearGradient id="${id}b" x1="1" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff2c4"/><stop offset=".45" stop-color="#e8bb5c"/><stop offset="1" stop-color="#a26e1a"/></linearGradient>
+      <radialGradient id="${id}c" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></radialGradient>
+      <linearGradient id="${id}d" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9a6716"/><stop offset="1" stop-color="#f3d38a"/></linearGradient>
+    </defs>
+    <circle cx="100" cy="100" r="96" fill="url(#${id}a)"/>
+    <circle cx="100" cy="100" r="82" fill="url(#${id}b)"/>
+    <circle cx="100" cy="100" r="82" fill="url(#${id}c)"/>
+    <rect x="76" y="76" width="48" height="48" rx="5" transform="rotate(45 100 100)" fill="url(#${id}d)"/>
+    <rect x="80" y="80" width="40" height="40" rx="3" transform="rotate(45 100 100)" fill="#fffaf0"/>
+  </svg>`);
+}
+const coinStage = (size) => html`<div class="coin-stage" style="--s:${size}px"><i></i><i></i><i></i>${coin(size)}</div>`;
+
 async function landing() {
   document.title = "Settle — Get paid without the awkward chase";
   const me = await loadMe();
+  const cta = me ? "/app" : "/signup";
   app.innerHTML = val(html`
-  <header class="site-nav"><div class="site">
-    ${logo()}
-    <nav><a href="#how">How it works</a><a href="#law">The law</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></nav>
-    <div class="right">
-      ${me ? html`<a class="btn primary" href="/app">Open Settle ${icon("arrow", 14)}</a>`
-           : html`<a class="btn ghost" href="/login">Log in</a><a class="btn primary" href="/signup">Start free</a>`}
-    </div>
+  <div class="gs">
+  <header class="gs-nav"><div class="gs-wrap">
+    <a href="/" class="gs-word">Settle</a>
+    <nav><a href="#how">How it works</a><a href="#law">The law</a><a href="#pricing">Pricing</a><a href="#faq">Questions</a></nav>
+    <div class="right">${me ? html`<a class="pill" href="/app">Open Settle</a>` : html`<a class="gs-link" href="/login">Log in</a><a class="pill" href="/signup">Start free</a>`}</div>
   </div></header>
 
   <main>
-    <section class="hero site">
-      <span class="eyebrow rise"><b>New</b> Late Payment Act interest, calculated for you</span>
-      <h1 class="rise" style="animation-delay:.05s">Get paid without<br>the <em>awkward</em> chase.</h1>
-      <p class="lead rise" style="animation-delay:.1s">Connect Xero or QuickBooks in two clicks. Settle becomes <b>Sarah from Accounts</b> — a calm, polite credit controller who chases every overdue invoice on WhatsApp and email, so you never have to.</p>
-      <div class="ctas rise" style="animation-delay:.15s">
-        <a class="btn primary lg" href="${me ? "/app" : "/signup"}">See what you're owed ${icon("arrow", 16)}</a>
-        <a class="btn lg" href="#how">How it works</a>
-      </div>
-      <div class="fine rise" style="animation-delay:.2s">Set up in 3 minutes · No card needed · If we don't collect, you don't pay</div>
-
-      <div class="showcase">
-        <div class="phone" aria-label="Example WhatsApp conversation">
-          <div class="phone-top"><span class="avatar">S</span><div><b>Sarah · Brightside Ltd</b><div class="muted" style="font-size:12px">WhatsApp Business</div></div></div>
-          <div class="phone-body">
-            <div class="bubble out">Hi Olivia, it's Sarah from Brightside 👋 Just a quick nudge that invoice INV-1042 (PO-8812) for £8,450.00 was due on 28 July. Would you mind taking a look when you get a sec?<time>09:12 <span class="tick">✓✓</span></time></div>
-            <div class="bubble in">Oh no — so sorry Sarah, that got stuck in approvals. I'll get it paid on Friday.<time>09:31</time></div>
-            <div class="bubble out">Thanks Olivia, much appreciated. I've noted INV-1042 for payment on Friday 3 October. Here's the link in case it helps: pay.settle.co/k2x9<time>09:31 <span class="tick">✓✓</span></time></div>
-            <div class="bubble in">Paid ✅<time>Fri 10:04</time></div>
-          </div>
+    <section class="gs-wrap gs-hero">
+      <div class="gs-card hero-card">
+        <div class="hero-copy rise">
+          <h1>Get paid without<br>the awkward chase.</h1>
+          <p>Credit control for UK businesses. Settle connects to Xero or QuickBooks and politely chases every overdue invoice on WhatsApp and email — so you never have to.</p>
+          <div class="hero-actions"><a class="pill lg" href="${cta}">See what you're owed</a><span>Set up in 3 minutes · No card</span></div>
         </div>
-        <div class="show-side">
-          <div class="card stat-card"><div class="k">Overdue right now</div><div class="v num">£38,420<small>.50</small></div><div class="muted" style="font-size:13px">11 invoices · 10 customers</div>
-            <div class="aging" style="margin-top:14px"><i class="a1" style="flex:9"></i><i class="a2" style="flex:14"></i><i class="a3" style="flex:5"></i><i class="a4" style="flex:11"></i></div></div>
-          <div class="card stat-card collected-flash"><div class="k" style="color:var(--green)">Collected by Sarah this week</div><div class="v num" style="color:var(--green)">£14,690<small>.00</small></div><div class="muted" style="font-size:13px">Zero awkward phone calls</div></div>
-          <div class="card stat-card"><div class="k">Late Payment Act claim available</div><div class="v num">£1,312<small>.77</small></div><div class="muted" style="font-size:13px">Interest + fixed compensation you're entitled to</div></div>
+        <div class="hero-art">${coinStage(250)}</div>
+      </div>
+    </section>
+
+    <section class="gs-wrap gs-split">
+      <div class="gs-split-copy">
+        <h2>Meet Sarah,<br>from Accounts.</h2>
+        <p>A named credit controller who writes like a person, not a system. She references the exact invoice, PO and payment link, notes promises, and hands disputes straight to you.</p>
+        <ul class="gs-list">
+          <li><b>Calm by default.</b> Friendly nudge first, firmer only when needed.</li>
+          <li><b>Never argues.</b> Queries and disputes come to you, not her.</li>
+          <li><b>Business hours only.</b> Weekdays, UK time, never twice in a week.</li>
+        </ul>
+      </div>
+      <div class="phone gs-phone" aria-label="Example WhatsApp conversation">
+        <div class="phone-top"><span class="avatar">S</span><div><b>Sarah · Brightside Ltd</b><div class="muted" style="font-size:12px">WhatsApp Business</div></div></div>
+        <div class="phone-body">
+          <div class="bubble out">Hi Olivia, it's Sarah from Brightside. Just a quick nudge that invoice INV-1042 (PO-8812) for £8,450.00 was due on 28 July. Would you mind taking a look when you get a sec?<time>09:12 <span class="tick">✓✓</span></time></div>
+          <div class="bubble in">So sorry Sarah — stuck in approvals. I'll get it paid on Friday.<time>09:31</time></div>
+          <div class="bubble out">Thanks Olivia, much appreciated. I've noted INV-1042 for payment on Friday 3 October.<time>09:31 <span class="tick">✓✓</span></time></div>
+          <div class="bubble in">Paid ✅<time>Fri 10:04</time></div>
         </div>
       </div>
     </section>
 
-    <section class="section site" style="padding-top:64px">
-      <div class="facts">
-        <div><b>14,000</b><span>UK small firms close every year because of late payment</span></div>
-        <div><b>86 hours</b><span>the average SME spends each year chasing unpaid invoices</span></div>
-        <div><b>£40–£100</b><span>compensation per late invoice, plus 8% over base — the law's on your side</span></div>
+    <section class="gs-wrap gs-compare" id="how">
+      <div class="gs-split-copy">
+        <h2>Less chasing.<br>More cash.</h2>
+        <p>Chasing yourself costs hours and goodwill. Agencies cost commission and clients. Settle takes three minutes to set up, then runs quietly in the background.</p>
+        <ol class="gs-steps">
+          <li><span>01</span><div><b>Connect your books</b>Two clicks to link Xero or QuickBooks. Read-only.</div></li>
+          <li><span>02</span><div><b>Meet Sarah</b>Pick her name and tone. Preview every message.</div></li>
+          <li><span>03</span><div><b>Get paid</b>Chases go out on schedule. You see every reply.</div></li>
+        </ol>
       </div>
-      <p class="muted" style="font-size:12px;margin-top:10px">Figures as reported by the UK Office of the Small Business Commissioner.</p>
-    </section>
-
-    <section class="section site" id="how">
-      <h2>Three minutes to set up.<br>Then it just runs.</h2>
-      <p class="sub">No IT department, no integration project, no new habit to learn.</p>
-      <div class="steps">
-        <div class="card step"><div class="n">1</div><h3>Connect your books</h3><p>Two clicks to link Xero or QuickBooks. Settle reads every overdue invoice, PO number and payment link.</p></div>
-        <div class="card step"><div class="n">2</div><h3>Meet Sarah</h3><p>Name your credit controller and pick a tone. Preview every message before anything goes out.</p></div>
-        <div class="card step"><div class="n">3</div><h3>Get paid</h3><p>Polite WhatsApp and email chases on a schedule. Promises are tracked, disputes come straight to you.</p></div>
-      </div>
-    </section>
-
-    <section class="section site" id="law">
-      <div class="law">
-        <div class="law-copy">
-          <h2>The law already says they owe you more.</h2>
-          <p class="sub" style="margin-bottom:0">Under the Late Payment of Commercial Debts (Interest) Act 1998, UK businesses can charge other businesses statutory interest and fixed compensation on late invoices. Almost nobody does — because asking is awkward. Sarah asks for you.</p>
-          <ul>
-            <li>${icon("check")}<span><b>8% + Bank of England base rate</b>, simple interest, accruing daily from the due date.</span></li>
-            <li>${icon("check")}<span><b>£40, £70 or £100</b> fixed compensation per invoice, depending on its size.</span></li>
-            <li>${icon("check")}<span>Only mentioned when you allow it — with an offer to waive it if they pay by Friday.</span></li>
-          </ul>
-        </div>
-        <div class="card calc">
-          <b>What are you owed on a late invoice?</b>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <label class="field">Invoice amount<input class="input num" id="c-amt" inputmode="decimal" value="4,500"></label>
-            <label class="field">Days overdue<input class="input num" id="c-days" inputmode="numeric" value="45"></label>
-          </div>
-          <div class="out" id="c-out">${calcRows(null)}</div>
-          <div class="muted" style="font-size:12px">Illustrative only. Applies to business-to-business debts without a contractual late-payment clause.</div>
-        </div>
+      <div class="bars" aria-label="Effort required from you, by approach">
+        <div class="bar-col"><div class="bar-ico">${icon("clock", 18)}</div><div class="bar-track"><div class="bar" style="--h:88%"></div></div><span>Doing it yourself</span><em>Hours of awkward calls</em></div>
+        <div class="bar-col"><div class="bar-ico">${icon("scale", 18)}</div><div class="bar-track"><div class="bar" style="--h:58%"></div></div><span>Collection agency</span><em>Commission, strained clients</em></div>
+        <div class="bar-col brand"><div class="bar-ico gold">${icon("check", 18)}</div><div class="bar-track"><div class="bar" style="--h:16%"></div></div><span>Settle</span><em>3 minutes, then hands-off</em></div>
+        <div class="bars-cap">Effort required from you</div>
       </div>
     </section>
 
-    <section class="section site" id="pricing">
-      <h2>Pays for itself on the first invoice.</h2>
-      <p class="sub">Recover one late payment and the month is covered. Cancel any time.</p>
-      <div class="pricing">
-        <div class="card plan">
-          <b>Pay as you collect</b>
-          <div class="price num">£199<small> /month + 2% of what we collect</small></div>
-          <ul>${["WhatsApp + email chasing", "Xero & QuickBooks", "Late Payment Act claims", "Reply handling by Sarah"].map((f) => html`<li>${icon("check")}${f}</li>`)}</ul>
-          <a class="btn lg" href="/signup">Start free</a>
-        </div>
-        <div class="card plan featured">
-          <b>Unlimited</b>
-          <div class="price num">£449<small> /month, flat</small></div>
-          <ul>${["Everything in Pay as you collect", "No success fee, ever", "Multiple personas & brands", "Priority UK support"].map((f) => html`<li>${icon("check")}${f}</li>`)}</ul>
-          <a class="btn primary lg" href="/signup">Start free</a>
-        </div>
-      </div>
-      <div class="guarantee">${icon("shield", 20)} If Settle doesn't collect at least one overdue invoice in your first 30 days, you pay nothing.</div>
+    <section class="gs-wrap gs-facts">
+      <div><b>14,000</b><span>UK small firms close each year because of late payment</span></div>
+      <div><b>86 hours</b><span>the average SME spends a year chasing invoices</span></div>
+      <div><b>£40–£100</b><span>fixed compensation per late invoice, plus 8% over base</span></div>
+      <small>Figures as reported by the UK Office of the Small Business Commissioner.</small>
     </section>
 
-    <section class="section site" id="faq">
+    <section class="gs-wrap gs-law" id="law">
+      <div class="gs-split-copy">
+        <h2>The law already says<br>they owe you more.</h2>
+        <p>The Late Payment of Commercial Debts (Interest) Act 1998 lets UK businesses charge other businesses statutory interest at 8% over the Bank of England base rate, plus £40–£100 compensation per invoice. Almost nobody asks — Sarah does, politely, and offers to waive it if they pay by Friday.</p>
+      </div>
+      <div class="gs-card calc">
+        <b class="calc-title">What can you claim on a late invoice?</b>
+        <div class="calc-in">
+          <label class="field">Invoice amount<input class="input num" id="c-amt" inputmode="decimal" value="4,500"></label>
+          <label class="field">Days overdue<input class="input num" id="c-days" inputmode="numeric" value="45"></label>
+        </div>
+        <div class="out" id="c-out">${calcRows(null)}</div>
+        <small class="muted">Illustrative. Applies to business-to-business debts without a contractual late-payment clause.</small>
+      </div>
+    </section>
+
+    <section class="gs-wrap" id="pricing">
+      <div class="gs-head"><h2>Pays for itself on<br>the first invoice.</h2><p>Recover one late payment and the month is covered. Cancel any time.</p></div>
+      <div class="gs-pricing">
+        <div class="gs-card plan">
+          <span class="plan-name">Pay as you collect</span>
+          <div class="price num">£199<small> / month + 2% of what we collect</small></div>
+          <ul>${["WhatsApp and email chasing", "Xero and QuickBooks", "Late Payment Act claims", "Replies handled by Sarah"].map((f) => html`<li>${icon("check", 15)}${f}</li>`)}</ul>
+          <a class="pill ghost" href="${cta}">Start free</a>
+        </div>
+        <div class="gs-card plan dark">
+          <span class="plan-name">Unlimited</span>
+          <div class="price num">£449<small> / month, flat</small></div>
+          <ul>${["Everything in Pay as you collect", "No success fee, ever", "Multiple personas and brands", "Priority UK support"].map((f) => html`<li>${icon("check", 15)}${f}</li>`)}</ul>
+          <a class="pill gold" href="${cta}">Start free</a>
+        </div>
+      </div>
+      <p class="gs-guarantee">${icon("shield", 16)} If Settle doesn't collect at least one overdue invoice in your first 30 days, you pay nothing.</p>
+    </section>
+
+    <section class="gs-wrap gs-faq" id="faq">
       <h2>Questions</h2>
-      <div class="faq" style="margin-top:28px">
+      <div class="faq">
         ${[
-          ["Will it upset my clients?", "Sarah is polite, brief and human — never threatening. Messages reference the exact invoice and PO number, and you can preview every stage before anything is sent. Most clients simply pay; the chase was the only thing missing."],
-          ["Is charging statutory interest legitimate?", "Yes. The Late Payment of Commercial Debts (Interest) Act 1998 gives UK businesses the right to claim interest and fixed compensation from other businesses that pay late. Settle only mentions it after two friendly reminders, and you can switch it off per business or entirely."],
-          ["What happens when a client replies?", "Sarah reads the reply. Promises to pay are logged and chasing pauses until that date. 'Already paid' is checked against your books. Anything that looks like a dispute or a question she can't answer comes straight to you — she never argues."],
-          ["Do I need WhatsApp Business?", "No. Messages are sent from Settle's verified WhatsApp Business number under your company name, and by email from Sarah. You can connect your own number later."],
-          ["What does it cost if it doesn't work?", "Nothing. If Settle doesn't collect at least one overdue invoice in your first 30 days, you won't be charged."],
+          ["Will it upset my clients?", "Sarah is polite, brief and human — never threatening. Messages reference the exact invoice and PO number, and you preview every stage before anything is sent."],
+          ["Is charging statutory interest legitimate?", "Yes. The Late Payment of Commercial Debts (Interest) Act 1998 gives UK businesses the right to claim interest and fixed compensation from other businesses that pay late. Settle only mentions it after two friendly reminders, and you can switch it off."],
+          ["What happens when a client replies?", "Promises to pay are logged and chasing pauses until that date. 'Already paid' is checked against your books. Disputes and questions she can't answer come straight to you."],
+          ["Do I need WhatsApp Business?", "No. Messages go from Settle's verified WhatsApp Business number under your company name, and by email from Sarah."],
+          ["What if it doesn't work?", "If Settle doesn't collect at least one overdue invoice in your first 30 days, you won't be charged."],
         ].map(([q, a]) => html`<details><summary>${q}</summary><p>${a}</p></details>`)}
       </div>
     </section>
 
-    <section class="final">
-      <h2 class="serif" style="font-size:clamp(36px,5vw,56px);margin:0 0 14px;line-height:1.05">Stop chasing. Start collecting.</h2>
-      <p class="muted" style="font-size:17px;margin:0 0 28px">See exactly what you're owed in the next three minutes.</p>
-      <a class="btn primary lg" href="${me ? "/app" : "/signup"}">Get started free ${icon("arrow", 16)}</a>
+    <section class="gs-wrap">
+      <div class="gs-card cta-card">
+        <div class="cta-copy">
+          <h3>Start collecting what you're<br>owed, without the awkward chase.</h3>
+          <p>See exactly what's overdue in the next three minutes.</p>
+          <a class="pill" href="${cta}">Get started free</a>
+        </div>
+        <div class="cta-art">${coinStage(190)}</div>
+      </div>
     </section>
   </main>
-  <footer class="site-foot"><div class="site"><span>© ${new Date().getFullYear()} Settle · Made for UK businesses</span><span>Not legal advice. Statutory interest applies to business-to-business debts.</span></div></footer>`);
 
-  const nav = $(".site-nav");
-  const onScroll = () => nav.classList.toggle("scrolled", scrollY > 8);
+  <footer class="gs-foot">
+    <div class="gs-wrap gs-foot-top">
+      <p>Credit control for<br>UK businesses.</p>
+      <div class="gs-foot-links">
+        <div><b>Product</b><a href="#how">How it works</a><a href="#pricing">Pricing</a><a href="/login">Log in</a></div>
+        <div><b>Legal</b><a href="#law">Late Payment Act</a><span>Not legal advice</span></div>
+        <div><b>Contact</b><a href="mailto:hello@settle.co">Email</a><span>WhatsApp</span></div>
+      </div>
+    </div>
+    <div class="gs-giant" aria-hidden="true">Settle</div>
+  </footer>
+  </div>`);
+
+  const nav = $(".gs-nav");
+  const onScroll = () => nav && nav.classList.toggle("scrolled", scrollY > 8);
   addEventListener("scroll", onScroll, { passive: true });
   onScroll();
+
+  // Bars grow when scrolled into view
+  const bars = $(".bars");
+  if (bars && "IntersectionObserver" in window) {
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { bars.classList.add("in"); io.disconnect(); } }, { threshold: .35 });
+    io.observe(bars);
+  } else bars?.classList.add("in");
 
   const update = debounce(async () => {
     if (!$("#c-amt")) return; // navigated away
@@ -322,7 +365,7 @@ async function landing() {
     if (!(amount > 0) || !(days >= 0)) return;
     try {
       const c = await api(`/api/public/claim?amount=${amount}&days=${days}`);
-      $("#c-out").innerHTML = val(calcRows(c));
+      if ($("#c-out")) $("#c-out").innerHTML = val(calcRows(c));
     } catch { /* keep last result */ }
   }, 180);
   $("#c-amt").addEventListener("input", update);

@@ -593,7 +593,7 @@ class Handler(BaseHTTPRequestHandler):
             if WEB.resolve() not in target.parents or not target.is_file():
                 return self._send(404, b"Not found", "text/plain")
             ctype = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
-            return self._send(200, target.read_bytes(), ctype, {"Cache-Control": "public, max-age=300"})
+            return self._send(200, target.read_bytes(), ctype, {"Cache-Control": "no-cache"})
         page = "pay.html" if path.startswith("/pay/") else "index.html"
         return self._send(200, (WEB / page).read_bytes(), "text/html; charset=utf-8", {"Cache-Control": "no-cache"})
 
